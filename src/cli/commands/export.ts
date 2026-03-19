@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { resolve } from 'node:path';
-import { presetOption, noZoomOption, noHighlightOption, noCursorOption, gradientOption, paddingOption, cornerRadiusOption, noShadowOption } from '../options.js';
+import { presetOption, noZoomOption, noHighlightOption, noCursorOption, backgroundOption, noBackgroundOption, paddingOption, cornerRadiusOption, noShadowOption } from '../options.js';
 import * as output from '../output.js';
 import { readMetadata } from '../../recording/metadata.js';
 import { metadataPath, exportsDir, composedVideoPath } from '../../utils/paths.js';
@@ -15,7 +15,8 @@ export const exportCommand = new Command('export')
   .addOption(noZoomOption)
   .addOption(noHighlightOption)
   .addOption(noCursorOption)
-  .addOption(gradientOption)
+  .addOption(backgroundOption)
+  .addOption(noBackgroundOption)
   .addOption(paddingOption)
   .addOption(cornerRadiusOption)
   .addOption(noShadowOption)
@@ -52,9 +53,10 @@ export const exportCommand = new Command('export')
     spinner.start();
 
     try {
-      const background = opts.gradient
+      const bg = (opts.noBackground || opts.background === 'none') ? undefined : opts.background;
+      const background = bg
         ? {
-            gradient: opts.gradient,
+            gradient: bg,
             padding: parseInt(opts.padding, 10),
             cornerRadius: parseInt(opts.cornerRadius, 10),
             shadow: opts.shadow !== false,

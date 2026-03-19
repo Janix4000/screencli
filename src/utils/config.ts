@@ -2,6 +2,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { ConfigError } from './errors.js';
+import { isLoggedIn } from '../cloud/client.js';
 
 export interface AppConfig {
   anthropicApiKey: string;
@@ -22,12 +23,31 @@ function loadFileConfig(): Partial<AppConfig> {
   }
 }
 
+/** Returns true when a valid API key is available OR user is logged in to cloud. */
+export function isConfigured(): boolean {
+  if (process.env['ANTHROPIC_API_KEY']) return true;
+  if (isLoggedIn()) return true;
+  const file = loadFileConfig();
+  return !!file.anthropicApiKey;
+}
+
 export function loadConfig(): AppConfig {
   const file = loadFileConfig();
   const apiKey = process.env['ANTHROPIC_API_KEY'] ?? file.anthropicApiKey;
+
+  // If logged in to cloud, the API key is provided by the proxy — use a placeholder
+  if (!apiKey && isLoggedIn()) {
+    return {
+      anthropicApiKey: 'cloud-proxy',
+      defaultModel: file.defaultModel ?? 'claude-sonnet-4-20250514',
+      defaultViewport: file.defaultViewport ?? { width: 1920, height: 1080 },
+      actionDelayMs: file.actionDelayMs ?? 150,
+    };
+  }
+
   if (!apiKey) {
     throw new ConfigError(
-      'Missing ANTHROPIC_API_KEY. Run `screencli init` to configure, or set it as an environment variable.'
+      'Not logged in and no ANTHROPIC_API_KEY set. Run `screencli init` to sign in, or set ANTHROPIC_API_KEY for local-only use.'
     );
   }
 
@@ -35,6 +55,6 @@ export function loadConfig(): AppConfig {
     anthropicApiKey: apiKey,
     defaultModel: file.defaultModel ?? 'claude-sonnet-4-20250514',
     defaultViewport: file.defaultViewport ?? { width: 1920, height: 1080 },
-    actionDelayMs: file.actionDelayMs ?? 400,
+    actionDelayMs: file.actionDelayMs ?? 150,
   };
 }

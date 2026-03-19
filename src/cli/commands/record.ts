@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import { createInterface } from 'node:readline';
 import { v4 as uuidv4 } from 'uuid';
 import { resolve } from 'node:path';
 import {
@@ -11,14 +12,18 @@ import {
   maxStepsOption,
   loginOption,
   authOption,
-  gradientOption,
+  backgroundOption,
+  noBackgroundOption,
   paddingOption,
   cornerRadiusOption,
   noShadowOption,
+  localOption,
+  unlistedOption,
   parseViewport,
 } from '../options.js';
 import * as output from '../output.js';
-import { loadConfig } from '../../utils/config.js';
+import { loadConfig, isConfigured } from '../../utils/config.js';
+import { runInit } from './init.js';
 import { recordingDir, eventsPath, metadataPath } from '../../utils/paths.js';
 import { launchSession } from '../../browser/session.js';
 import { runLoginFlow, loadAuthState, saveAuthState, hasAuthState } from '../../browser/auth.js';
@@ -29,10 +34,24 @@ import { runAgentLoop } from '../../agent/loop.js';
 import { composeVideo } from '../../video/compose.js';
 import type { BackgroundOptions } from '../../video/background.js';
 import { logger, setLogLevel } from '../../utils/logger.js';
+import { isLoggedIn, apiRequest, validateToken, saveCloudConfig, loadCloudConfig } from '../../cloud/client.js';
+import { uploadRecording } from '../../cloud/upload.js';
+
+const BACKGROUND_CHOICES = ['aurora', 'sunset', 'ocean', 'lavender', 'mint', 'ember'] as const;
+
+function ask(question: string): Promise<string> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
+}
 
 export const recordCommand = new Command('record')
   .description('Record an AI-driven browser demo')
-  .argument('<url>', 'Starting URL')
+  .argument('[url]', 'Starting URL')
   .addOption(promptOption)
   .addOption(outputOption)
   .addOption(viewportOption)
@@ -42,13 +61,58 @@ export const recordCommand = new Command('record')
   .addOption(maxStepsOption)
   .addOption(loginOption)
   .addOption(authOption)
-  .addOption(gradientOption)
+  .addOption(backgroundOption)
+  .addOption(noBackgroundOption)
   .addOption(paddingOption)
   .addOption(cornerRadiusOption)
   .addOption(noShadowOption)
+  .addOption(localOption)
+  .addOption(unlistedOption)
   .option('-v, --verbose', 'Verbose logging')
-  .action(async (url: string, opts: Record<string, any>) => {
+  .action(async (urlArg: string | undefined, opts: Record<string, any>) => {
     if (opts.verbose) setLogLevel('debug');
+
+    // Auto-run init on first use
+    if (!isConfigured()) {
+      output.info('First time? Let\u2019s get you set up.\n');
+      const ok = await runInit();
+      if (!ok) {
+        output.error('Setup incomplete. Re-run with ANTHROPIC_API_KEY set, or run `screencli init`.');
+        process.exit(1);
+      }
+    }
+
+    // ── Interactive prompts for missing params ──
+    let url = urlArg ?? '';
+    if (!url) {
+      url = await ask('  URL to record: ');
+      if (!url) {
+        output.error('URL is required.');
+        process.exit(1);
+      }
+    }
+
+    if (!opts.prompt) {
+      opts.prompt = await ask('  What should the agent do? ');
+      if (!opts.prompt) {
+        output.error('Prompt is required.');
+        process.exit(1);
+      }
+    }
+
+    // Resolve background: --no-background or --background none disables it
+    if (opts.noBackground || opts.background === 'none') {
+      opts.background = undefined;
+    }
+
+    // Validate cloud token early, before any expensive work
+    if (isLoggedIn() && !process.env['ANTHROPIC_API_KEY']) {
+      const validated = await validateToken();
+      if (!validated) {
+        output.error('Not authenticated. Please run: npx screencli login');
+        process.exit(1);
+      }
+    }
 
     const config = loadConfig();
     const viewport = parseViewport(opts.viewport);
@@ -110,6 +174,7 @@ export const recordCommand = new Command('record')
       result = await runAgentLoop({
         apiKey: config.anthropicApiKey,
         model: opts.model,
+        recording_id: id,
         url,
         prompt: opts.prompt,
         page: session.page,
@@ -161,9 +226,9 @@ export const recordCommand = new Command('record')
       const composeSpinner = output.createSpinner('Composing video with effects...');
       composeSpinner.start();
       try {
-        const background: BackgroundOptions | undefined = opts.gradient
+        const background: BackgroundOptions | undefined = opts.background
           ? {
-              gradient: opts.gradient,
+              gradient: opts.background,
               padding: parseInt(opts.padding, 10),
               cornerRadius: parseInt(opts.cornerRadius, 10),
               shadow: opts.shadow !== false,
@@ -186,6 +251,45 @@ export const recordCommand = new Command('record')
       }
     }
 
+    // Cloud upload
+    let shareUrl: string | undefined;
+    if (!opts.local && isLoggedIn()) {
+      console.log('');
+      const uploadSpinner = output.createSpinner('Uploading to cloud...');
+      uploadSpinner.start();
+      try {
+        const uploadResult = await uploadRecording(recDir, {
+          id,
+          url,
+          prompt: opts.prompt,
+          model: opts.model,
+          viewport_w: viewport.width,
+          viewport_h: viewport.height,
+          duration_ms: eventLog.getDurationMs(),
+          tokens_input: result.stats.input_tokens,
+          tokens_output: result.stats.output_tokens,
+          visibility: opts.unlisted ? 'unlisted' : 'public',
+        });
+        shareUrl = uploadResult.url;
+        uploadSpinner.succeed(`Uploaded: ${shareUrl}`);
+
+        // Show credits remaining
+        try {
+          const meRes = await apiRequest('/api/me');
+          if (meRes.ok) {
+            const me = await meRes.json() as { credits?: number };
+            if (me.credits !== undefined) {
+              const steps = result.stats.total_actions;
+              const creditsUsed = Math.ceil(steps / 10);
+              output.info(`${creditsUsed} credit${creditsUsed !== 1 ? 's' : ''} used (${steps} steps) \u00b7 ${me.credits} remaining`);
+            }
+          }
+        } catch { /* ignore */ }
+      } catch (err) {
+        uploadSpinner.warn(`Cloud upload skipped: ${err instanceof Error ? err.message : err}`);
+      }
+    }
+
     // Summary
     console.log('');
     output.header('Recording Complete');
@@ -195,5 +299,9 @@ export const recordCommand = new Command('record')
     output.stats('Duration', `${(eventLog.getDurationMs() / 1000).toFixed(1)}s`);
     output.stats('Chapters', chapters.length);
     output.stats('Output', recDir);
+    if (shareUrl) {
+      output.stats('Share URL', shareUrl);
+    }
     console.log('');
+    process.exit(0);
   });

@@ -1,6 +1,6 @@
 import { Option } from 'commander';
 
-export const promptOption = new Option('-p, --prompt <text>', 'Instructions for the AI agent').makeOptionMandatory();
+export const promptOption = new Option('-p, --prompt <text>', 'Instructions for the AI agent');
 
 export const outputOption = new Option('-o, --output <dir>', 'Output directory').default('./recordings');
 
@@ -30,12 +30,16 @@ export const noCursorOption = new Option('--no-cursor', 'Disable cursor trail');
 export const loginOption = new Option('--login', 'Open browser for manual login before AI takes over');
 export const authOption = new Option('--auth <name>', 'Use saved auth state (auto-creates on first use via login flow)');
 
-export const gradientOption = new Option('--gradient <name>', 'Add gradient background').choices([
-  'aurora', 'sunset', 'ocean', 'lavender', 'mint', 'ember',
-]);
+export const backgroundOption = new Option('--background <name>', 'Background style').choices([
+  'aurora', 'sunset', 'ocean', 'lavender', 'mint', 'ember', 'none',
+]).default('aurora');
+export const noBackgroundOption = new Option('--no-background', 'Disable background');
 export const paddingOption = new Option('--padding <percent>', 'Background padding percentage').default('8');
 export const cornerRadiusOption = new Option('--corner-radius <px>', 'Video corner radius in pixels').default('12');
 export const noShadowOption = new Option('--no-shadow', 'Disable drop shadow on background');
+
+export const localOption = new Option('--local', 'Skip cloud upload even if logged in');
+export const unlistedOption = new Option('--unlisted', 'Upload but mark as unlisted (not shown on public profile)');
 
 export function parseViewport(value: string): { width: number; height: number } {
   const match = value.match(/^(\d+)x(\d+)$/);

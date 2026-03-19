@@ -1,62 +1,46 @@
 import { Command } from 'commander';
-import { createInterface } from 'node:readline';
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
-import { homedir } from 'node:os';
 import * as output from '../output.js';
+import { isLoggedIn, loadCloudConfig } from '../../cloud/client.js';
+import { loginFlow } from '../../cloud/auth.js';
 
-const CONFIG_DIR = join(homedir(), '.screencli');
-const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
+/**
+ * Run the interactive setup flow.
+ * Signs the user in via GitHub/Google OAuth.
+ */
+export async function runInit(): Promise<boolean> {
+  output.header('screencli setup');
+  console.log('');
 
-function prompt(question: string): Promise<string> {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  return new Promise((resolve) => {
-    rl.question(question, (answer) => {
-      rl.close();
-      resolve(answer.trim());
-    });
-  });
+  if (isLoggedIn()) {
+    const config = loadCloudConfig();
+    output.success(`Already logged in as ${config.email || 'unknown'}`);
+    console.log('');
+    return true;
+  }
+
+  output.info('Sign in with GitHub or Google to get started.');
+  console.log('');
+
+  try {
+    const result = await loginFlow();
+    console.log('');
+    output.success(`Logged in as ${result.email} (${result.plan} plan)`);
+    output.success('Ready to record');
+    console.log('');
+    return true;
+  } catch (err: any) {
+    output.error(`Login failed: ${err.message}`);
+    output.info('You can also set ANTHROPIC_API_KEY env var for local-only use.');
+    return false;
+  }
 }
 
 export const initCommand = new Command('init')
-  .description('Set up screencli (configure API key and settings)')
+  .description('Set up screencli (sign in to start recording)')
   .action(async () => {
-    output.header('screencli setup');
-
-    // Load existing config if any
-    let existing: Record<string, any> = {};
-    if (existsSync(CONFIG_FILE)) {
-      try {
-        existing = JSON.parse(readFileSync(CONFIG_FILE, 'utf-8'));
-      } catch { /* ignore */ }
+    const ok = await runInit();
+    if (ok) {
+      output.info('Run `screencli record <url> -p "..."` to start recording');
+      console.log('');
     }
-
-    const masked = existing.anthropicApiKey
-      ? `${existing.anthropicApiKey.slice(0, 10)}...${existing.anthropicApiKey.slice(-4)}`
-      : undefined;
-
-    // Prompt for API key
-    const keyPrompt = masked
-      ? `  Anthropic API key [${masked}]: `
-      : '  Anthropic API key: ';
-
-    const apiKey = await prompt(keyPrompt);
-
-    if (apiKey) {
-      existing.anthropicApiKey = apiKey;
-    } else if (!existing.anthropicApiKey) {
-      output.warn('No API key provided. You can set ANTHROPIC_API_KEY env var instead.');
-    }
-
-    // Write config
-    mkdirSync(CONFIG_DIR, { recursive: true });
-    writeFileSync(CONFIG_FILE, JSON.stringify(existing, null, 2) + '\n');
-
-    console.log('');
-    output.success(`Config saved to ${CONFIG_FILE}`);
-    if (existing.anthropicApiKey) {
-      output.success('API key configured');
-    }
-    output.info('Run `screencli record <url> -p "..."` to start recording');
-    console.log('');
   });

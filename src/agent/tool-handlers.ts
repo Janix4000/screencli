@@ -9,7 +9,7 @@ import type { ElementTarget } from '../browser/resolve-locator.js';
 import type { Viewport } from '../recording/types.js';
 
 export interface ToolResult {
-  content: Array<{ type: 'text'; text: string } | { type: 'image'; source: { type: 'base64'; media_type: 'image/png'; data: string } }>;
+  content: Array<{ type: 'text'; text: string } | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } }>;
   isDone?: boolean;
   summary?: string;
 }
@@ -70,14 +70,14 @@ export class ToolHandlers {
     return path;
   }
 
-  private screenshotContent(buffer: Buffer): ToolResult['content'] {
+  private screenshotContent(buffer: Buffer, mediaType: 'image/png' | 'image/jpeg' = 'image/png'): ToolResult['content'] {
     this.saveScreenshot(buffer);
     return [
       {
         type: 'image',
         source: {
           type: 'base64',
-          media_type: 'image/png',
+          media_type: mediaType,
           data: buffer.toString('base64'),
         },
       },

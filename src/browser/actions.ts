@@ -85,7 +85,7 @@ export async function scroll(
     bounding_box = await getBoundingBox(locator);
     await locator.scrollIntoViewIfNeeded({ timeout: 10000 });
   } else {
-    const amount = options.amount ?? 500;
+    const amount = options.amount ?? 600;
     const deltaX =
       options.direction === 'left' ? -amount : options.direction === 'right' ? amount : 0;
     const deltaY =
