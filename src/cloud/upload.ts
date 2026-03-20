@@ -40,6 +40,7 @@ export async function uploadRecording(
     { type: "video", localPath: path.join(recordingDir, "composed.mp4") },
     { type: "raw", localPath: path.join(recordingDir, "raw.webm") },
     { type: "events", localPath: path.join(recordingDir, "events.json") },
+    { type: "thumbnail", localPath: path.join(recordingDir, "thumbnail.jpg") },
   ];
 
   for (const file of files) {

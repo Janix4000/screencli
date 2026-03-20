@@ -9,6 +9,30 @@ import { buildBackgroundFilterComplex, backgroundImagePath, type BackgroundOptio
 import { logger } from '../utils/logger.js';
 import { unlinkSync } from 'node:fs';
 
+/**
+ * Extract a thumbnail frame from a video file.
+ * Seeks to 2s (or 0s if video is shorter) and extracts a single JPEG frame.
+ */
+export async function generateThumbnail(videoPath: string, outputPath: string): Promise<void> {
+  let seekTo = 2;
+  try {
+    const duration = await getVideoDuration(videoPath);
+    if (duration < 2) seekTo = 0;
+  } catch {
+    seekTo = 0;
+  }
+
+  await runFFmpeg({
+    input: videoPath,
+    output: outputPath,
+    outputArgs: [
+      '-ss', String(seekTo),
+      '-vframes', '1',
+      '-q:v', '2',
+    ],
+  });
+}
+
 export interface ComposeOptions {
   rawVideoPath: string;
   events: RecordingEvent[];

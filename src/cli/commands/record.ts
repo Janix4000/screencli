@@ -31,7 +31,7 @@ import { EventLog } from '../../recording/event-log.js';
 import { writeMetadata } from '../../recording/metadata.js';
 import { deriveChapters } from '../../recording/chapters.js';
 import { runAgentLoop } from '../../agent/loop.js';
-import { composeVideo } from '../../video/compose.js';
+import { composeVideo, generateThumbnail } from '../../video/compose.js';
 import type { BackgroundOptions } from '../../video/background.js';
 import { logger, setLogLevel } from '../../utils/logger.js';
 import { isLoggedIn, apiRequest, validateToken, saveCloudConfig, loadCloudConfig } from '../../cloud/client.js';
@@ -250,6 +250,16 @@ export const recordCommand = new Command('record')
           background,
         });
         composeSpinner.succeed('Video composed');
+
+        // Generate thumbnail from composed video
+        try {
+          await generateThumbnail(
+            resolve(recDir, 'composed.mp4'),
+            resolve(recDir, 'thumbnail.jpg'),
+          );
+        } catch {
+          // Non-fatal — upload proceeds without thumbnail
+        }
       } catch (err) {
         composeSpinner.warn(`Video composition skipped: ${err instanceof Error ? err.message : err}`);
       }
