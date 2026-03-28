@@ -48,7 +48,7 @@ npx screencli export ./recordings/abc123 --preset twitter
 ## Links
 
 - Website: https://screencli.sh
-- AI Agent Skill: `npx skills add usefulagents/screencli-skill`
+- AI Agent Skill: `npx skills add https://github.com/usefulagents/screencli --skill screencli`
 
 ## License
 
