@@ -78,7 +78,7 @@ export const recordCommand = new Command('record')
       output.info('First time? Let\u2019s get you set up.\n');
       const ok = await runInit();
       if (!ok) {
-        output.error('Setup incomplete. Re-run with ANTHROPIC_API_KEY set, or run `screencli init`.');
+        output.error('Setup incomplete. Run `screencli init` to try again.');
         process.exit(1);
       }
     }

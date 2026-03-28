@@ -15,7 +15,7 @@ import { renderCommand } from '../src/cli/commands/render.js';
 const program = new Command()
   .name('screencli')
   .description('AI-powered screen recording CLI tool')
-  .version('0.1.0');
+  .version('0.3.0');
 
 program.addCommand(initCommand);
 program.addCommand(recordCommand);
