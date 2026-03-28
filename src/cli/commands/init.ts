@@ -40,13 +40,13 @@ async function installSkill(): Promise<void> {
   const spinner = output.createSpinner('Installing skill...');
   spinner.start();
   try {
-    execSync('npx -y skills add https://github.com/usefulagents/screencli --skill screencli', {
+    execSync('npx -y skills add usefulagents/screencli --skill screencli', {
       stdio: 'ignore',
       timeout: 60_000,
     });
     spinner.succeed('Skill installed');
   } catch {
-    spinner.warn('Skill installation skipped (you can install later with: npx skills add https://github.com/usefulagents/screencli --skill screencli)');
+    spinner.warn('Skill installation skipped (you can install later with: npx skills add usefulagents/screencli --skill screencli)');
   }
 }
 
