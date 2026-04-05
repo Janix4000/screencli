@@ -13,6 +13,7 @@ import type { AgentStats } from '../recording/types.js';
 export interface AgentLoopOptions {
   apiKey: string;
   model: string;
+  llmBaseUrl?: string;
   recording_id?: string;
   url: string;
   prompt: string;
@@ -72,8 +73,9 @@ function trimOldScreenshots(messages: Anthropic.MessageParam[], keepLast: number
 }
 
 export async function runAgentLoop(options: AgentLoopOptions): Promise<AgentLoopResult> {
-  const useProxy = isLoggedIn() && !process.env['ANTHROPIC_API_KEY'];
-  const client = useProxy ? null : new Anthropic({ apiKey: options.apiKey });
+  const useProxy = isLoggedIn() && !process.env['ANTHROPIC_API_KEY'] && !process.env['LLM_API_KEY'];
+  const baseURL = options.llmBaseUrl ?? process.env['LLM_BASE_URL'];
+  const client = useProxy ? null : new Anthropic({ apiKey: options.apiKey, ...(baseURL && { baseURL }) });
   const handlers = new ToolHandlers(
     options.page,
     options.eventLog,

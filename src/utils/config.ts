@@ -25,7 +25,7 @@ function loadFileConfig(): Partial<AppConfig> {
 
 /** Returns true when a valid API key is available OR user is logged in to cloud. */
 export function isConfigured(): boolean {
-  if (process.env['ANTHROPIC_API_KEY']) return true;
+  if (process.env['LLM_API_KEY'] || process.env['ANTHROPIC_API_KEY']) return true;
   if (isLoggedIn()) return true;
   const file = loadFileConfig();
   return !!file.anthropicApiKey;
@@ -33,7 +33,7 @@ export function isConfigured(): boolean {
 
 export function loadConfig(): AppConfig {
   const file = loadFileConfig();
-  const apiKey = process.env['ANTHROPIC_API_KEY'] ?? file.anthropicApiKey;
+  const apiKey = process.env['LLM_API_KEY'] ?? process.env['ANTHROPIC_API_KEY'] ?? file.anthropicApiKey;
 
   // If logged in to cloud, the API key is provided by the proxy — use a placeholder
   if (!apiKey && isLoggedIn()) {
